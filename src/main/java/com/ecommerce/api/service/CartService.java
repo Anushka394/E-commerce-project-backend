@@ -32,10 +32,9 @@ public class CartService {
         this.userService = userService;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public CartResponse getCart(String username) {
         Cart cart = getOrCreateCart(username);
-        // Re-fetch inside same transaction to ensure items are loaded
         return new CartResponse(cartRepository.findById(cart.getId()).orElse(cart));
     }
 
