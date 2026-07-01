@@ -34,7 +34,9 @@ public class CartService {
 
     @Transactional(readOnly = true)
     public CartResponse getCart(String username) {
-        return new CartResponse(getOrCreateCart(username));
+        Cart cart = getOrCreateCart(username);
+        // Re-fetch inside same transaction to ensure items are loaded
+        return new CartResponse(cartRepository.findById(cart.getId()).orElse(cart));
     }
 
     public CartResponse addItem(String username, CartItemRequest request) {
