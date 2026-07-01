@@ -2,6 +2,10 @@
 
 A production-ready e-commerce backend built with **Spring Boot 3**, **Spring Security + JWT**, **Spring Data JPA**, and **MySQL**.
 
+**Live API:** `https://e-commerce-project-backend-f84h.onrender.com`
+
+> Note: First request may take 30-60 seconds to wake up (free tier cold start).
+
 ## Tech Stack
 
 | Layer | Technology |
