@@ -1,0 +1,3 @@
+com\ecommerce\api\service\CartServiceTest.class
+com\ecommerce\api\service\ProductServiceTest.class
+com\ecommerce\api\service\UserServiceTest.class
