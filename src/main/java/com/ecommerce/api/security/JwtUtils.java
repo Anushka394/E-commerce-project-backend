@@ -16,11 +16,23 @@ public class JwtUtils {
 
     private static final Logger log = LoggerFactory.getLogger(JwtUtils.class);
 
-    @Value("${app.jwt.secret:Ch@ngeThisSecretIn_Production_MinimumLength32!!}")
+    @Value("${app.jwt.secret}")
     private String jwtSecret;
 
-    @Value("${app.jwt.expiration-ms:86400000}")
+    @Value("${app.jwt.expiration-ms}")
     private long jwtExpirationMs;
+
+    /**
+     * Validate JWT secret is not using default value in production
+     */
+    public void validateSecretInProduction(String profile) {
+        if ("prod".equalsIgnoreCase(profile) || "production".equalsIgnoreCase(profile)) {
+            if (jwtSecret.equals("Ch@ngeThisSecretIn_Production_MinimumLength32!!")) {
+                throw new IllegalStateException("CRITICAL: JWT secret is using default value in production! " +
+                        "Set JWT_SECRET environment variable.");
+            }
+        }
+    }
 
     private Key signingKey() {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes());
@@ -31,6 +43,9 @@ public class JwtUtils {
                 .setSubject(userDetails.getUsername())
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
+                .claim("authorities", userDetails.getAuthorities().stream()
+                        .map(auth -> auth.getAuthority())
+                        .toList())
                 .signWith(signingKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
@@ -58,5 +73,9 @@ public class JwtUtils {
             log.warn("JWT claims string is empty: {}", e.getMessage());
         }
         return false;
+    }
+
+    public long getExpirationTimeInSeconds() {
+        return jwtExpirationMs / 1000;
     }
 }
