@@ -34,6 +34,10 @@ public class Product {
     @Column(length = 1000)
     private String description;
 
+    // Optimistic locking for inventory management
+    @Version
+    private Long version;
+
     public Product() {}
 
     public Long getId() { return id; }
@@ -59,4 +63,7 @@ public class Product {
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+
+    public Long getVersion() { return version; }
+    public void setVersion(Long version) { this.version = version; }
 }
