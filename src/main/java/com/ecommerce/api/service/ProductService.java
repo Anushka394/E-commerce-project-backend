@@ -6,53 +6,87 @@ import com.ecommerce.api.exception.ResourceNotFoundException;
 import com.ecommerce.api.model.Category;
 import com.ecommerce.api.model.Product;
 import com.ecommerce.api.repository.ProductRepository;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.util.List;
+import java.math.BigDecimal;
 
 @Service
 @Transactional
 public class ProductService {
 
+    private static final Logger log = LoggerFactory.getLogger(ProductService.class);
+
     private final ProductRepository productRepository;
     private final CategoryService categoryService;
+    private final ReviewService reviewService;
 
-    public ProductService(ProductRepository productRepository, CategoryService categoryService) {
+    public ProductService(ProductRepository productRepository, 
+                         CategoryService categoryService,
+                         ReviewService reviewService) {
         this.productRepository = productRepository;
         this.categoryService = categoryService;
+        this.reviewService = reviewService;
     }
 
     @Transactional(readOnly = true)
+    @Cacheable("products")
     public Page<ProductResponse> getAllProducts(Pageable pageable) {
-        return productRepository.findAll(pageable).map(ProductResponse::new);
+        return productRepository.findAll(pageable).map(this::enrichProductResponse);
     }
 
     @Transactional(readOnly = true)
     public ProductResponse getProductById(Long id) {
-        return new ProductResponse(findEntityById(id));
+        return enrichProductResponse(findEntityById(id));
     }
 
     @Transactional(readOnly = true)
-    public List<ProductResponse> searchByName(String name) {
-        return productRepository.findByNameContainingIgnoreCase(name)
-                .stream().map(ProductResponse::new).toList();
+    public Page<ProductResponse> searchByKeyword(String keyword, Pageable pageable) {
+        return productRepository.searchByKeyword(keyword, pageable)
+                .map(this::enrichProductResponse);
     }
 
     @Transactional(readOnly = true)
-    public List<ProductResponse> getByCategory(Long categoryId) {
-        return productRepository.findByCategoryId(categoryId)
-                .stream().map(ProductResponse::new).toList();
+    public Page<ProductResponse> getByCategory(Long categoryId, Pageable pageable) {
+        return productRepository.findByCategoryId(categoryId).stream()
+                .map(this::enrichProductResponse)
+                .collect(java.util.stream.Collectors.toList())
+                .stream().skip(pageable.getOffset()).limit(pageable.getPageSize())
+                .collect(java.util.stream.Collectors.toList())
+                .stream()
+                .collect(java.util.stream.Collectors.toUnmodifiableList());
     }
 
+    @Transactional(readOnly = true)
+    public Page<ProductResponse> filterByPriceRange(Long categoryId, 
+                                                     BigDecimal minPrice, 
+                                                     BigDecimal maxPrice,
+                                                     Pageable pageable) {
+        return productRepository.findByCategoryAndPriceRange(categoryId, minPrice, maxPrice, pageable)
+                .map(this::enrichProductResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ProductResponse> getLowStockProducts(Pageable pageable) {
+        return productRepository.findLowStockProducts(pageable)
+                .map(this::enrichProductResponse);
+    }
+
+    @CacheEvict(value = "products", allEntries = true)
     public ProductResponse createProduct(ProductRequest request) {
         Category category = categoryService.getCategoryById(request.getCategoryId());
-        Product product = applyRequest(new Product(), request, category);
+        Product product = new Product();
+        applyRequest(product, request, category);
         return new ProductResponse(productRepository.save(product));
     }
 
+    @CacheEvict(value = "products", allEntries = true)
     public ProductResponse updateProduct(Long id, ProductRequest request) {
         Product product = findEntityById(id);
         Category category = categoryService.getCategoryById(request.getCategoryId());
@@ -60,6 +94,7 @@ public class ProductService {
         return new ProductResponse(productRepository.save(product));
     }
 
+    @CacheEvict(value = "products", allEntries = true)
     public void deleteProduct(Long id) {
         if (!productRepository.existsById(id)) {
             throw new ResourceNotFoundException("Product not found with id: " + id);
@@ -67,14 +102,22 @@ public class ProductService {
         productRepository.deleteById(id);
     }
 
-    // ── Internal helpers ──────────────────────────────────────────────────────
-
     public Product findEntityById(Long id) {
         return productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + id));
     }
 
-    private Product applyRequest(Product product, ProductRequest req, Category category) {
+    private ProductResponse enrichProductResponse(Product product) {
+        ProductResponse response = new ProductResponse(product);
+        Double avgRating = reviewService.getAverageRating(product.getId());
+        Long reviewCount = reviewService.getReviewCount(product.getId());
+        
+        // Add ratings info to response (you may need to extend ProductResponse DTO)
+        // For now, this is a placeholder for future enhancement
+        return response;
+    }
+
+    private void applyRequest(Product product, ProductRequest req, Category category) {
         product.setName(req.getName());
         product.setImage(req.getImage());
         product.setCategory(category);
@@ -82,6 +125,5 @@ public class ProductService {
         product.setPrice(req.getPrice());
         product.setWeight(req.getWeight());
         product.setDescription(req.getDescription());
-        return product;
     }
 }

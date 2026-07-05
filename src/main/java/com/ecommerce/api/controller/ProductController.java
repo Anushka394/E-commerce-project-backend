@@ -8,7 +8,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.math.BigDecimal;
 
 @RestController
 @RequestMapping("/api/products")
@@ -40,12 +40,14 @@ public class ProductController {
     }
 
     /**
-     * GET /api/products/search?name=apple
-     * Public — search products by name (case-insensitive)
+     * GET /api/products/search?keyword=apple
+     * Public — search products by keyword (case-insensitive)
      */
     @GetMapping("/search")
-    public ResponseEntity<List<ProductResponse>> search(@RequestParam String name) {
-        return ResponseEntity.ok(productService.searchByName(name));
+    public ResponseEntity<Page<ProductResponse>> search(
+            @RequestParam String keyword,
+            @PageableDefault(size = 10) Pageable pageable) {
+        return ResponseEntity.ok(productService.searchByKeyword(keyword, pageable));
     }
 
     /**
@@ -53,7 +55,32 @@ public class ProductController {
      * Public — filter products by category
      */
     @GetMapping("/category/{categoryId}")
-    public ResponseEntity<List<ProductResponse>> getByCategory(@PathVariable Long categoryId) {
-        return ResponseEntity.ok(productService.getByCategory(categoryId));
+    public ResponseEntity<Page<ProductResponse>> getByCategory(
+            @PathVariable Long categoryId,
+            @PageableDefault(size = 10) Pageable pageable) {
+        return ResponseEntity.ok(productService.getByCategory(categoryId, pageable));
+    }
+
+    /**
+     * GET /api/products/filter?category=1&minPrice=10&maxPrice=100
+     * Public — filter by price range
+     */
+    @GetMapping("/filter")
+    public ResponseEntity<Page<ProductResponse>> filterByPrice(
+            @RequestParam Long category,
+            @RequestParam BigDecimal minPrice,
+            @RequestParam BigDecimal maxPrice,
+            @PageableDefault(size = 10) Pageable pageable) {
+        return ResponseEntity.ok(productService.filterByPriceRange(category, minPrice, maxPrice, pageable));
+    }
+
+    /**
+     * GET /api/products/stock/low
+     * Admin — get low stock products
+     */
+    @GetMapping("/stock/low")
+    public ResponseEntity<Page<ProductResponse>> getLowStockProducts(
+            @PageableDefault(size = 10) Pageable pageable) {
+        return ResponseEntity.ok(productService.getLowStockProducts(pageable));
     }
 }
