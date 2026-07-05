@@ -25,10 +25,10 @@ public class Order {
     @Column(nullable = false)
     private OrderStatus status = OrderStatus.PENDING;
 
-    @Column(nullable = false)
+    @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal totalPrice = BigDecimal.ZERO;
 
-    @Column(nullable = false)
+    @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
     @Column
@@ -41,7 +41,7 @@ public class Order {
     private String shippingAddress;
 
     @Column(length = 20)
-    private String paymentMethod; // stripe, razorpay, etc.
+    private String paymentMethod;
 
     @Column(length = 100)
     private String transactionId;

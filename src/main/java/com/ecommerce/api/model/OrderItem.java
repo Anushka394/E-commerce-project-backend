@@ -23,7 +23,7 @@ public class OrderItem {
     private Integer quantity;
 
     @Column(nullable = false, precision = 10, scale = 2)
-    private BigDecimal priceAtPurchase; // snapshot of price at time of order
+    private BigDecimal priceAtPurchase;
 
     public OrderItem() {}
 

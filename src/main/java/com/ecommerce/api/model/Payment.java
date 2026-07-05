@@ -24,7 +24,7 @@ public class Payment {
     private BigDecimal amount;
 
     @Column(length = 50)
-    private String paymentGateway; // stripe, razorpay, paypal
+    private String paymentGateway;
 
     @Column(length = 100)
     private String transactionId;
@@ -32,7 +32,7 @@ public class Payment {
     @Column(length = 500)
     private String errorMessage;
 
-    @Column(nullable = false)
+    @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
     @Column
