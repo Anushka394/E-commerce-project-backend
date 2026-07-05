@@ -2,10 +2,12 @@ package com.ecommerce.api.controller;
 
 import com.ecommerce.api.dto.request.CategoryRequest;
 import com.ecommerce.api.dto.request.ProductRequest;
+import com.ecommerce.api.dto.response.OrderResponse;
 import com.ecommerce.api.dto.response.ProductResponse;
 import com.ecommerce.api.dto.response.UserResponse;
 import com.ecommerce.api.model.Category;
 import com.ecommerce.api.service.CategoryService;
+import com.ecommerce.api.service.OrderService;
 import com.ecommerce.api.service.ProductService;
 import com.ecommerce.api.service.UserService;
 import jakarta.validation.Valid;
@@ -25,13 +27,16 @@ public class AdminController {
     private final UserService userService;
     private final CategoryService categoryService;
     private final ProductService productService;
+    private final OrderService orderService;
 
     public AdminController(UserService userService,
                            CategoryService categoryService,
-                           ProductService productService) {
+                           ProductService productService,
+                           OrderService orderService) {
         this.userService = userService;
         this.categoryService = categoryService;
         this.productService = productService;
+        this.orderService = orderService;
     }
 
     // ── Customer management ───────────────────────────────────────────────────
@@ -97,5 +102,17 @@ public class AdminController {
     public ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
         productService.deleteProduct(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // ── Order management ──────────────────────────────────────────────────────
+
+    /**
+     * PUT /api/admin/orders/{orderId}/status?status=SHIPPED
+     * Advance an order's status (PENDING, PROCESSING, SHIPPED, DELIVERED, CANCELLED)
+     */
+    @PutMapping("/orders/{orderId}/status")
+    public ResponseEntity<OrderResponse> updateOrderStatus(@PathVariable Long orderId,
+                                                            @RequestParam String status) {
+        return ResponseEntity.ok(orderService.updateOrderStatus(orderId, status));
     }
 }

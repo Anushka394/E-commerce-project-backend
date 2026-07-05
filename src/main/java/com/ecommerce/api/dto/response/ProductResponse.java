@@ -15,6 +15,8 @@ public class ProductResponse {
     private BigDecimal price;
     private Integer weight;
     private String description;
+    private Double averageRating;
+    private Long reviewCount;
 
     public ProductResponse(Product p) {
         this.id = p.getId();
@@ -37,4 +39,10 @@ public class ProductResponse {
     public BigDecimal getPrice() { return price; }
     public Integer getWeight() { return weight; }
     public String getDescription() { return description; }
+
+    public Double getAverageRating() { return averageRating; }
+    public void setAverageRating(Double averageRating) { this.averageRating = averageRating; }
+
+    public Long getReviewCount() { return reviewCount; }
+    public void setReviewCount(Long reviewCount) { this.reviewCount = reviewCount; }
 }

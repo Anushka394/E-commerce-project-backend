@@ -9,13 +9,11 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
-import java.util.List;
 
 @Repository
 public interface ProductRepository extends JpaRepository<Product, Long> {
     Page<Product> findAll(Pageable pageable);
-    List<Product> findByCategoryId(Long categoryId);
-    List<Product> findByNameContainingIgnoreCase(String name);
+    Page<Product> findByCategoryId(Long categoryId, Pageable pageable);
 
     @Query("SELECT p FROM Product p WHERE p.category.id = :categoryId " +
            "AND p.price BETWEEN :minPrice AND :maxPrice " +

@@ -7,6 +7,7 @@ import com.ecommerce.api.exception.ResourceNotFoundException;
 import com.ecommerce.api.model.Review;
 import com.ecommerce.api.model.Product;
 import com.ecommerce.api.model.User;
+import com.ecommerce.api.repository.ProductRepository;
 import com.ecommerce.api.repository.ReviewRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -22,21 +23,23 @@ public class ReviewService {
     private static final Logger log = LoggerFactory.getLogger(ReviewService.class);
 
     private final ReviewRepository reviewRepository;
-    private final ProductService productService;
+    private final ProductRepository productRepository;
     private final UserService userService;
 
     public ReviewService(ReviewRepository reviewRepository,
-                        ProductService productService,
+                        ProductRepository productRepository,
                         UserService userService) {
         this.reviewRepository = reviewRepository;
-        this.productService = productService;
+        this.productRepository = productRepository;
         this.userService = userService;
     }
 
     @Transactional(readOnly = true)
     public Page<ReviewResponse> getProductReviews(Long productId, Pageable pageable) {
         // Verify product exists
-        productService.findEntityById(productId);
+        if (!productRepository.existsById(productId)) {
+            throw new ResourceNotFoundException("Product not found with id: " + productId);
+        }
         return reviewRepository.findByProductId(productId, pageable).map(ReviewResponse::new);
     }
 
@@ -51,7 +54,8 @@ public class ReviewService {
     }
 
     public ReviewResponse createReview(Long productId, String username, ReviewRequest request) {
-        Product product = productService.findEntityById(productId);
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
         User user = userService.findEntityByUsername(username);
 
         // Check if user already reviewed this product

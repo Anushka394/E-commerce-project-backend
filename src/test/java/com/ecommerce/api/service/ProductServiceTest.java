@@ -24,6 +24,7 @@ class ProductServiceTest {
 
     @Mock ProductRepository productRepository;
     @Mock CategoryService categoryService;
+    @Mock ReviewService reviewService;
 
     @InjectMocks ProductService productService;
 

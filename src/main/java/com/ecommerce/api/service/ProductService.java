@@ -54,13 +54,8 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public Page<ProductResponse> getByCategory(Long categoryId, Pageable pageable) {
-        return productRepository.findByCategoryId(categoryId).stream()
-                .map(this::enrichProductResponse)
-                .collect(java.util.stream.Collectors.toList())
-                .stream().skip(pageable.getOffset()).limit(pageable.getPageSize())
-                .collect(java.util.stream.Collectors.toList())
-                .stream()
-                .collect(java.util.stream.Collectors.toUnmodifiableList());
+        return productRepository.findByCategoryId(categoryId, pageable)
+                .map(this::enrichProductResponse);
     }
 
     @Transactional(readOnly = true)
@@ -107,13 +102,20 @@ public class ProductService {
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + id));
     }
 
+    /**
+     * Call this whenever a product's stock is mutated outside this service
+     * (e.g. checkout deducting stock, order cancellation restocking) so the
+     * cached product listings don't serve stale quantities.
+     */
+    @CacheEvict(value = "products", allEntries = true)
+    public void evictProductCache() {
+        // No-op body — the annotation does the work.
+    }
+
     private ProductResponse enrichProductResponse(Product product) {
         ProductResponse response = new ProductResponse(product);
-        Double avgRating = reviewService.getAverageRating(product.getId());
-        Long reviewCount = reviewService.getReviewCount(product.getId());
-        
-        // Add ratings info to response (you may need to extend ProductResponse DTO)
-        // For now, this is a placeholder for future enhancement
+        response.setAverageRating(reviewService.getAverageRating(product.getId()));
+        response.setReviewCount(reviewService.getReviewCount(product.getId()));
         return response;
     }
 

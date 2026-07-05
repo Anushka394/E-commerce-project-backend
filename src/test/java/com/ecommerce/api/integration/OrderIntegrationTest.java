@@ -15,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -96,11 +98,14 @@ class OrderIntegrationTest {
         checkoutRequest.put("shippingAddress", "123 Main St, City");
         checkoutRequest.put("paymentMethod", "stripe");
 
+        // Checkout now attempts payment synchronously via the mock gateway (createOrder ->
+        // processPayment), so the resulting status is PROCESSING (success) or CANCELLED
+        // (the gateway's simulated ~5% decline rate) — never still PENDING.
         mockMvc.perform(post("/api/orders/checkout")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(checkoutRequest)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.status").value(anyOf(is("PROCESSING"), is("CANCELLED"))))
                 .andExpect(jsonPath("$.totalPrice").value(199.98))
                 .andExpect(jsonPath("$.shippingAddress").value("123 Main St, City"))
                 .andExpect(jsonPath("$.items.length()").value(1));

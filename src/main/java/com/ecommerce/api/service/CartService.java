@@ -105,7 +105,7 @@ public class CartService {
 
     private void validateStock(Product product, int requestedQty) {
         if (product.getQuantity() < requestedQty) {
-            throw new BadRequestException(
+            throw new com.ecommerce.api.exception.InsufficientStockException(
                     "Insufficient stock for '" + product.getName()
                     + "'. Available: " + product.getQuantity());
         }

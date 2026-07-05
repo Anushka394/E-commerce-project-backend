@@ -3,6 +3,7 @@ package com.ecommerce.api.config;
 import com.ecommerce.api.filter.RateLimitingFilter;
 import com.ecommerce.api.security.JwtAuthFilter;
 import com.ecommerce.api.security.JwtUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -32,6 +33,9 @@ public class SecurityConfig {
     private final UserDetailsService userDetailsService;
     private final JwtUtils jwtUtils;
     private final RateLimitingFilter rateLimitingFilter;
+
+    @Value("${spring.web.cors.allowed-origins:http://localhost:3000,http://localhost:8080}")
+    private String allowedOrigins;
 
     public SecurityConfig(UserDetailsService userDetailsService, JwtUtils jwtUtils, RateLimitingFilter rateLimitingFilter) {
         this.userDetailsService = userDetailsService;
@@ -65,7 +69,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000", "http://localhost:8080"));
+        configuration.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
@@ -89,6 +93,8 @@ public class SecurityConfig {
                 .requestMatchers("/actuator/health").permitAll()
                 // Swagger/OpenAPI — public
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-resources/**").permitAll()
+                // Low-stock inventory report — admin only (must precede the general products GET rule below)
+                .requestMatchers(HttpMethod.GET, "/api/products/stock/low").hasAuthority("ROLE_ADMIN")
                 // Product & category read — public
                 .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/categories/**").permitAll()
@@ -100,7 +106,7 @@ public class SecurityConfig {
             )
             .authenticationProvider(authenticationProvider())
             .addFilterBefore(jwtAuthFilter(), UsernamePasswordAuthenticationFilter.class)
-            .addFilterBefore(rateLimitingFilter, JwtAuthFilter.class);
+            .addFilterAfter(rateLimitingFilter, JwtAuthFilter.class);
 
         return http.build();
     }

@@ -29,17 +29,20 @@ public class OrderService {
     private final CartItemRepository cartItemRepository;
     private final UserService userService;
     private final PaymentService paymentService;
+    private final ProductService productService;
 
     public OrderService(OrderRepository orderRepository,
                        CartRepository cartRepository,
                        CartItemRepository cartItemRepository,
                        UserService userService,
-                       PaymentService paymentService) {
+                       PaymentService paymentService,
+                       ProductService productService) {
         this.orderRepository = orderRepository;
         this.cartRepository = cartRepository;
         this.cartItemRepository = cartItemRepository;
         this.userService = userService;
         this.paymentService = paymentService;
+        this.productService = productService;
     }
 
     @Transactional(readOnly = true)
@@ -72,48 +75,61 @@ public class OrderService {
 
         BigDecimal totalPrice = BigDecimal.ZERO;
 
-        // Convert cart items to order items with inventory locking
-        try {
-            for (CartItem cartItem : cart.getItems()) {
-                Product product = cartItem.getProduct();
+        // Convert cart items to order items with inventory locking.
+        // Only unexpected failures get wrapped/logged generically — known business
+        // exceptions (like insufficient stock) must propagate with their real type
+        // so the client gets an accurate error rather than a generic 400.
+        for (CartItem cartItem : cart.getItems()) {
+            Product product = cartItem.getProduct();
 
-                // Check inventory
-                if (product.getQuantity() < cartItem.getQuantity()) {
-                    throw new BadRequestException(
-                            "Insufficient stock for '" + product.getName() + "'. " +
-                            "Available: " + product.getQuantity() + ", Requested: " + cartItem.getQuantity()
-                    );
-                }
-
-                // Deduct inventory (optimistic locking will handle race conditions)
-                product.setQuantity(product.getQuantity() - cartItem.getQuantity());
-
-                // Create order item with price snapshot
-                OrderItem orderItem = new OrderItem(
-                        order,
-                        product,
-                        cartItem.getQuantity(),
-                        product.getPrice()
+            // Check inventory
+            if (product.getQuantity() < cartItem.getQuantity()) {
+                throw new com.ecommerce.api.exception.InsufficientStockException(
+                        "Insufficient stock for '" + product.getName() + "'. " +
+                        "Available: " + product.getQuantity() + ", Requested: " + cartItem.getQuantity()
                 );
-                order.getItems().add(orderItem);
-                totalPrice = totalPrice.add(orderItem.getSubtotal());
             }
-        } catch (Exception e) {
-            log.error("Error processing order items: {}", e.getMessage());
-            throw new BadRequestException("Error processing order: " + e.getMessage());
+
+            // Deduct inventory (optimistic locking will handle concurrent purchase races)
+            product.setQuantity(product.getQuantity() - cartItem.getQuantity());
+
+            // Create order item with price snapshot
+            OrderItem orderItem = new OrderItem(
+                    order,
+                    product,
+                    cartItem.getQuantity(),
+                    product.getPrice()
+            );
+            order.getItems().add(orderItem);
+            totalPrice = totalPrice.add(orderItem.getSubtotal());
         }
 
         order.setTotalPrice(totalPrice);
         Order savedOrder = orderRepository.save(order);
 
-        // Create payment record
+        // Create the payment record, then attempt to charge it immediately (mock gateway).
+        // Order status is updated inside processPayment (PROCESSING on success, CANCELLED on decline).
         paymentService.createPayment(savedOrder);
+        Payment payment = paymentService.processPayment(savedOrder.getId());
 
-        // Clear cart
+        if (payment.getStatus() == Payment.PaymentStatus.FAILED) {
+            // Payment was declined — release the stock we reserved above so it's sellable again.
+            for (OrderItem item : savedOrder.getItems()) {
+                Product product = item.getProduct();
+                product.setQuantity(product.getQuantity() + item.getQuantity());
+            }
+            log.warn("Checkout payment declined, stock released. OrderId: {}", savedOrder.getId());
+        }
+
+        // Clear cart regardless of payment outcome — the checkout attempt is complete either way.
         cart.getItems().clear();
         cartRepository.save(cart);
 
-        log.info("Order created successfully. OrderId: {}, UserId: {}, Total: {}", savedOrder.getId(), user.getId(), totalPrice);
+        // Stock quantities changed above — invalidate cached product listings.
+        productService.evictProductCache();
+
+        log.info("Order created. OrderId: {}, UserId: {}, Total: {}, PaymentStatus: {}",
+                savedOrder.getId(), user.getId(), totalPrice, payment.getStatus());
 
         return new OrderResponse(savedOrder);
     }
@@ -122,7 +138,13 @@ public class OrderService {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
 
-        Order.OrderStatus status = Order.OrderStatus.valueOf(newStatus);
+        Order.OrderStatus status;
+        try {
+            status = Order.OrderStatus.valueOf(newStatus.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("Invalid order status: '" + newStatus +
+                    "'. Valid values: PENDING, PROCESSING, SHIPPED, DELIVERED, CANCELLED");
+        }
         order.setStatus(status);
 
         if (status == Order.OrderStatus.SHIPPED) {
@@ -157,6 +179,9 @@ public class OrderService {
 
         // Refund payment if applicable
         paymentService.refundPayment(orderId);
+
+        // Stock quantities changed above — invalidate cached product listings.
+        productService.evictProductCache();
 
         log.info("Order cancelled. OrderId: {}, UserId: {}", orderId, user.getId());
     }
